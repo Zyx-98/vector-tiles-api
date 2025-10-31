@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Vector Tiles Demo</title>
+	<link href="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.css" rel="stylesheet">
+	<script src="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.js"></script>
+	<style>
+		body {
+			margin: 0;
+			padding: 0;
+			font-family: 'Arial', sans-serif;
+		}
+
+		#map {
+			position: absolute;
+			top: 0;
+			bottom: 0;
+			width: 100%;
+		}
+
+		.info-panel {
+			position: absolute;
+			top: 10px;
+			right: 10px;
+			background: white;
+			padding: 15px;
+			border-radius: 8px;
+			box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+			max-width: 300px;
+			z-index: 1;
+		}
+
+		.info-panel h3 {
+			margin: 0 0 10px 0;
+			font-size: 16px;
+		}
+
+		.info-panel p {
+			margin: 5px 0;
+			font-size: 12px;
+		}
+
+		.legend {
+			margin-top: 10px;
+			padding-top: 10px;
+			border-top: 1px solid #ddd;
+		}
+
+		.legend-item {
+			display: flex;
+			align-items: center;
+			margin: 5px 0;
+			font-size: 11px;
+		}
+
+		.legend-color {
+			width: 20px;
+			height: 3px;
+			margin-right: 8px;
+		}
+	</style>
+</head>
+
+<body>
+	<div id="map"></div>
+	<div class="info-panel">
+		<h3>Roads</h3>
+		<p><strong>Vector Tiles Demo</strong></p>
+		<p>Zoom: <span id="zoom">6</span></p>
+		<p>Roads loaded: <span id="roadCount">Loading...</span></p>
+
+		<div class="legend">
+			<strong>Road Types:</strong>
+			<div class="legend-item">
+				<div class="legend-color" style="background: #ff4444; height: 4px;"></div>
+				<span>Highway</span>
+			</div>
+			<div class="legend-item">
+				<div class="legend-color" style="background: #ff9800;"></div>
+				<span>Main Road</span>
+			</div>
+			<div class="legend-item">
+				<div class="legend-color" style="background: #4CAF50;"></div>
+				<span>Secondary Road</span>
+			</div>
+			<div class="legend-item">
+				<div class="legend-color" style="background: #2196F3;"></div>
+				<span>Scenic Road</span>
+			</div>
+		</div>
+	</div>
+
+	<script>
+		const API_BASE = 'http://localhost:3000/api';
+
+		const map = new maplibregl.Map({
+			container: 'map',
+			style: {
+				version: 8,
+				glyphs: 'https://fonts.openmaptiles.org/{fontstack}/{range}.pbf',
+				sources: {
+					'osm': {
+						type: 'raster',
+						tiles: [
+							'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+							'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+							'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png'
+						],
+						tileSize: 256,
+						attribution: '© OpenStreetMap contributors'
+					}
+				},
+				layers: [
+					{
+						id: 'osm',
+						type: 'raster',
+						source: 'osm',
+						minzoom: 0,
+						maxzoom: 19
+					}
+				]
+			},
+			center: [106.0, 16.0],
+			zoom: 6,
+			minZoom: 4,
+			maxZoom: 20
+		});
+
+		map.on('load', () => {
+			map.addSource('source-roads', {
+				type: 'vector',
+				tiles: [`${API_BASE}/tiles/{z}/{x}/{y}.mvt`],
+			});
+
+			map.addLayer({
+				id: 'roads-highway',
+				type: 'line',
+				source: 'source-roads',
+				'source-layer': 'roads',
+				filter: ['==', ['get', 'road_type'], 'highway'],
+				paint: {
+					'line-color': '#ff4444',
+					'line-width': [
+						'interpolate',
+						['exponential', 1.5],
+						['zoom'],
+						5, 1,
+						10, 3,
+						15, 8
+					]
+				}
+			});
+
+			map.addLayer({
+				id: 'roads-main',
+				type: 'line',
+				source: 'source-roads',
+				'source-layer': 'roads',
+				filter: ['==', ['get', 'road_type'], 'main_road'],
+				paint: {
+					'line-color': '#ff9800',
+					'line-width': [
+						'interpolate',
+						['exponential', 1.5],
+						['zoom'],
+						5, 0.5,
+						10, 2,
+						15, 6
+					]
+				}
+			});
+
+			map.addLayer({
+				id: 'roads-secondary',
+				type: 'line',
+				source: 'source-roads',
+				'source-layer': 'roads',
+				filter: ['==', ['get', 'road_type'], 'secondary_road'],
+				paint: {
+					'line-color': '#4CAF50',
+					'line-width': [
+						'interpolate',
+						['exponential', 1.5],
+						['zoom'],
+						8, 0.5,
+						12, 1.5,
+						15, 4
+					]
+				}
+			});
+
+			map.addLayer({
+				id: 'roads-scenic',
+				type: 'line',
+				source: 'source-roads',
+				'source-layer': 'roads',
+				filter: ['==', ['get', 'road_type'], 'scenic_road'],
+				paint: {
+					'line-color': '#2196F3',
+					'line-width': [
+						'interpolate',
+						['exponential', 1.5],
+						['zoom'],
+						8, 0.5,
+						12, 1.5,
+						15, 4
+					]
+				}
+			});
+
+			map.addLayer({
+				id: 'roads-labels',
+				type: 'symbol',
+				source: 'source-roads',
+				'source-layer': 'roads',
+				minzoom: 10,
+				layout: {
+					'text-field': ['get', 'name'],
+					'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
+					'text-size': 11,
+					'symbol-placement': 'line',
+					'text-rotation-alignment': 'map'
+				},
+				paint: {
+					'text-color': '#333',
+					'text-halo-color': '#fff',
+					'text-halo-width': 2
+				}
+			});
+
+			map.on('zoom', () => {
+				document.getElementById('zoom').textContent =
+					map.getZoom().toFixed(2);
+			});
+
+			map.on('click', (e) => {
+				console.log('Click detected at:', e.lngLat);
+
+				const features = map.queryRenderedFeatures(e.point, {
+					layers: ['roads-highway', 'roads-main', 'roads-secondary', 'roads-scenic']
+				});
+
+				console.log('Features at click point:', features.length);
+
+				if (features.length > 0) {
+					const feature = features[0];
+					console.log('Clicked feature:', feature);
+
+					new maplibregl.Popup()
+						.setLngLat(e.lngLat)
+						.setHTML(`
+                    <strong>${feature.properties.name || 'Unnamed Road'}</strong><br>
+                    Type: ${feature.properties.road_type}<br>
+                    ID: ${feature.properties.id}
+                `)
+						.addTo(map);
+				} else {
+					console.log('No road features at this point');
+				}
+			});
+
+			map.on('mousemove', (e) => {
+				const features = map.queryRenderedFeatures(e.point, {
+					layers: ['roads-highway', 'roads-main', 'roads-secondary', 'roads-scenic']
+				});
+
+				map.getCanvas().style.cursor = features.length > 0 ? 'pointer' : '';
+			});
+
+			fetch(`${API_BASE}/stats`)
+				.then(response => response.json())
+				.then(data => {
+					document.getElementById('roadCount').textContent =
+						data.total_roads || 'N/A';
+				})
+				.catch(error => {
+					console.error('Error fetching stats:', error);
+					document.getElementById('roadCount').textContent = 'Error';
+				});
+		});
+
+		map.addControl(new maplibregl.NavigationControl());
+
+		map.addControl(new maplibregl.FullscreenControl());
+
+		map.addControl(new maplibregl.ScaleControl({
+			maxWidth: 100,
+			unit: 'metric'
+		}));
+	</script>
+</body>
+
+</html>

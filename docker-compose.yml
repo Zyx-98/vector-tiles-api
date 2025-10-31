@@ -1,0 +1,58 @@
+services:
+  postgres:
+    image: postgis/postgis:16-3.5
+    container_name: db_dev
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: roads
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./database/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development 
+    container_name: api_dev
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: roads
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      PORT: 3000
+      NODE_ENV: development
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./src:/usr/src/app/src
+      - ./public:/usr/src/app/public
+      - ./package.json:/usr/src/app/package.json
+      - ./tsconfig.json:/usr/src/app/tsconfig.json
+      - /usr/src/app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+    stdin_open: true
+    tty: true
+
+volumes:
+  postgres_data_dev:
+
+networks:
+  app-network:
+    driver: bridge
