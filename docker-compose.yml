@@ -1,4 +1,14 @@
 services:
+  redis:
+    image: redis:alpine
+    container_name: redis_dev
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
   postgres:
     image: postgis/postgis:16-3.5
     container_name: db_dev
@@ -34,6 +44,7 @@ services:
       DB_PASSWORD: postgres
       PORT: 3000
       NODE_ENV: development
+      REDIS_URL: redis://redis:6379
     ports:
       - "3000:3000"
     volumes:
@@ -41,6 +52,7 @@ services:
       - ./public:/usr/src/app/public
       - ./package.json:/usr/src/app/package.json
       - ./tsconfig.json:/usr/src/app/tsconfig.json
+      - ./logs:/usr/src/app/logs
       - /usr/src/app/node_modules
     depends_on:
       postgres:

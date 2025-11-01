@@ -1,8 +1,21 @@
-import { pool } from "../config/database";
+import { monitoredQuery, pool } from "../config/database";
+import { dbLogger } from "../config/logger";
+import { TileCacheService } from "./tile-cache-service";
 
 export class VectorTileService {
+  private _cache: TileCacheService;
+
+  constructor(cache: TileCacheService) {
+    this._cache = cache;
+  }
+
   async getTile(z: number, x: number, y: number): Promise<Buffer | null> {
     try {
+      const cachedTile = await this._cache.get(z, x, y);
+      if (cachedTile) {
+        return cachedTile;
+      }
+
       const maxTile = Math.pow(2, z);
 
       if (x < 0 || x >= maxTile || y < 0 || y >= maxTile) {
@@ -12,13 +25,18 @@ export class VectorTileService {
       const query = `select get_roads_mvt($1, $2, $3) as mvt`;
       const values = [z, x, y];
 
-      const result = await pool.query(query, values);
+      const result = await monitoredQuery(query, values);
 
       if (!result.rows.length || !result.rows[0].mvt) return null;
 
+      await this._cache.set(z, x, y, result.rows[0].mvt);
+
       return result.rows[0].mvt;
-    } catch (error) {
-      console.error("Error fetching vector tile:", error);
+    } catch (error: any) {
+      dbLogger.error(error, {
+        context: "getTile",
+        tile: { z, x, y },
+      });
       return null;
     }
   }

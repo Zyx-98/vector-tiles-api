@@ -1,8 +1,9 @@
 import { Router } from "express";
 import { VectorTileService } from "../services/vector-tile-service";
+import { TileCacheService } from "../services/tile-cache-service";
 
 const router = Router();
-const vectorTileService = new VectorTileService();
+const vectorTileService = new VectorTileService(new TileCacheService());
 
 router.get("/tiles/:z/:x/:y.mvt", async (req, res) => {
   try {
