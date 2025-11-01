@@ -1,15 +1,10 @@
--- Generate 500,000+ random roads in a realistic traffic network pattern
--- Area: Near Vietnam region (expanded boundaries for larger dataset)
--- Longitude: 100°E to 112°E, Latitude: 6°N to 25°N
-
 DO $$
 DECLARE
     i INTEGER;
     road_count INTEGER := 0;
     batch_size INTEGER := 10000;
-    total_roads INTEGER := 500000;
+    total_roads INTEGER := 1_000_000;
     
-    -- Random parameters
     start_lon FLOAT;
     start_lat FLOAT;
     end_lon FLOAT;
@@ -29,7 +24,6 @@ DECLARE
 BEGIN
     RAISE NOTICE 'Starting generation of % roads...', total_roads;
     
-    -- Loop to generate roads in batches
     FOR batch IN 0..((total_roads / batch_size) - 1) LOOP
         
         RAISE NOTICE 'Generating batch % of % (roads % to %)', 
@@ -39,11 +33,9 @@ BEGIN
             (batch + 1) * batch_size;
         
         FOR i IN 1..batch_size LOOP
-            -- Generate random start point (expanded Vietnam area)
-            start_lon := 100.0 + random() * 12.0;  -- 100°E to 112°E
-            start_lat := 6.0 + random() * 19.0;    -- 6°N to 25°N
+            start_lon := 100.0 + random() * 12.0;
+            start_lat := 6.0 + random() * 19.0;
             
-            -- Determine road type (weighted distribution)
             CASE 
                 WHEN random() < 0.05 THEN road_type := 'highway';
                 WHEN random() < 0.20 THEN road_type := 'main_road';
@@ -52,34 +44,29 @@ BEGIN
                 ELSE road_type := 'residential';
             END CASE;
             
-            -- Different segment characteristics based on road type
             CASE road_type
                 WHEN 'highway' THEN
-                    segment_points := 3 + floor(random() * 5)::INTEGER;  -- 3-7 points
+                    segment_points := 3 + floor(random() * 5)::INTEGER;
                 WHEN 'main_road' THEN
-                    segment_points := 2 + floor(random() * 4)::INTEGER;  -- 2-5 points
+                    segment_points := 2 + floor(random() * 4)::INTEGER;
                 WHEN 'secondary_road' THEN
-                    segment_points := 2 + floor(random() * 3)::INTEGER;  -- 2-4 points
+                    segment_points := 2 + floor(random() * 3)::INTEGER;
                 ELSE
-                    segment_points := 2 + floor(random() * 2)::INTEGER;  -- 2-3 points
+                    segment_points := 2 + floor(random() * 2)::INTEGER;
             END CASE;
             
-            -- Build linestring with multiple points
             geom_text := 'LINESTRING(';
             current_lon := start_lon;
             current_lat := start_lat;
             
             FOR point_idx IN 0..(segment_points - 1) LOOP
-                -- Add current point
                 geom_text := geom_text || current_lon || ' ' || current_lat;
                 
                 IF point_idx < segment_points - 1 THEN
                     geom_text := geom_text || ', ';
                     
-                    -- Calculate next point with some randomness
                     CASE road_type
                         WHEN 'highway' THEN
-                            -- Highways tend to go straighter and longer
                             current_lon := current_lon + (random() - 0.5) * 0.3;
                             current_lat := current_lat + (random() - 0.5) * 0.3;
                         WHEN 'main_road' THEN
@@ -89,7 +76,6 @@ BEGIN
                             current_lon := current_lon + (random() - 0.5) * 0.08;
                             current_lat := current_lat + (random() - 0.5) * 0.08;
                         ELSE
-                            -- Local and residential roads are shorter
                             current_lon := current_lon + (random() - 0.5) * 0.03;
                             current_lat := current_lat + (random() - 0.5) * 0.03;
                     END CASE;
@@ -98,13 +84,12 @@ BEGIN
             
             geom_text := geom_text || ')';
             
-            -- Generate road name
             road_name := road_type || '_' || (batch * batch_size + i);
             
-            -- Insert the road
-            EXECUTE format('INSERT INTO roads (name, road_type, geom) VALUES (%L, %L, ST_GeomFromText(%L, 4326))',
+            EXECUTE format('INSERT INTO roads (name, road_type, geom, geom_3857) VALUES (%L, %L, ST_GeomFromText(%L, 4326), ST_GeomFromText(%L, 3857))',
                 road_name,
                 road_type,
+                geom_text,
                 geom_text
             );
             

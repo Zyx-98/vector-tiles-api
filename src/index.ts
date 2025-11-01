@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import compression from "compression";
 import routes from "./routes";
 import { testConnection } from "./config/database";
+import path from "path";
 
 dotenv.config();
 
@@ -22,6 +23,13 @@ app.use(
 app.use(compression() as any);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+app.use(express.static(path.join(__dirname, "..", "public")));
+
+app.get("/map", (req: Request, res: Response) => {
+  res.sendFile(path.join(__dirname, "..", "public", "index.html"));
+})
+
 
 app.use((req: Request, res: Response, next: NextFunction) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
@@ -83,6 +91,7 @@ const startServer = async () => {
       console.log(
         `Tiles: http://localhost:${PORT}/api/tiles/{z}/{x}/{y}.mvt`
       );
+      console.log(`Client: http://localhost:${PORT}/map`);
     });
   } catch (error) {
     console.error("Failed to start server:", error);

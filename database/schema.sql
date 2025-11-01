@@ -7,11 +7,13 @@ CREATE TABLE IF NOT EXISTS roads (
     name VARCHAR(255),
     road_type VARCHAR(50),
     geom GEOMETRY(LineString, 4326),
+    geom_3857 GEOMETRY(LineString, 3857),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create spatial index for better performance
 CREATE INDEX IF NOT EXISTS roads_geom_idx ON roads USING GIST (geom);
+CREATE INDEX IF NOT EXISTS roads_geom_3857_idx ON roads USING GIST (geom_3857);
 
 -- Create function to generate vector tiles
 CREATE OR REPLACE FUNCTION get_roads_mvt(
@@ -23,51 +25,31 @@ RETURNS BYTEA AS $$
 DECLARE
     result BYTEA;
     tile_envelope GEOMETRY;
-    source_srid INTEGER;
 BEGIN
     tile_envelope := ST_TileEnvelope(z, x, y);
 
-    source_srid := Find_SRID('public', 'roads', 'geom');
-
-    IF source_srid = 3857 THEN
-        SELECT INTO result ST_AsMVT(q, 'roads', 4096, 'geom')
-        FROM (
-            SELECT
-                id,
-                name,
-                road_type,
-                ST_AsMVTGeom(
-                    geom,
-                    tile_envelope,
-                    4096,
-                    256,
-                    true
-                ) AS geom
-            FROM roads
-            WHERE geom && tile_envelope
-              AND ST_Intersects(geom, tile_envelope)
-        ) AS q
-        WHERE q.geom IS NOT NULL;
-    ELSE
-        SELECT INTO result ST_AsMVT(q, 'roads', 4096, 'geom')
-        FROM (
-            SELECT
-                id,
-                name,
-                road_type,
-                ST_AsMVTGeom(
-                    ST_Transform(geom, 3857),
-                    tile_envelope,
-                    4096,
-                    256,
-                    true
-                ) AS geom
-            FROM roads
-            WHERE ST_Transform(geom, 3857) && tile_envelope
-              AND ST_Intersects(ST_Transform(geom, 3857), tile_envelope)
-        ) AS q
-        WHERE q.geom IS NOT NULL;
-    END IF;
+    SELECT INTO result ST_AsMVT(q, 'roads', 4096, 'geom')
+    FROM (
+        SELECT
+            id,
+            name,
+            road_type,
+            ST_AsMVTGeom(
+                geom_3857,
+                tile_envelope,
+                4096,
+                256,
+                true
+            ) AS geom
+        FROM roads
+        WHERE geom_3857 && tile_envelope
+            AND (
+                z >= 10 OR
+                road_type IN ('highway', 'main_road') OR
+                (z >= 8 AND road_type = 'secondary_road')
+            )
+    ) AS q
+    WHERE q.geom IS NOT NULL;
 
     IF result IS NULL THEN
         result := E'\\x';
